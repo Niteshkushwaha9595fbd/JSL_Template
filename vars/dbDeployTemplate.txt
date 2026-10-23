@@ -1,0 +1,24 @@
+dbDeployTemplate(Map params)
+
+Parameterized Pipeline Template for Database SQL Schema Deployment.
+
+Usage in Jenkinsfile:
+  def dbConfig = [
+      environment   : 'DEV',                     // Target Env: DEV, QA, PROD
+      dbType        : 'mysql',                   // 'mysql' ya 'postgres'
+      dbHost        : '192.168.1.100',           // Host / IP
+      dbPort        : '3306',                    // Port (3306/5432)
+      dbName        : 'my_app_db',               // Database Name (Required)
+      credentialsId : 'db-credentials-id',       // Jenkins Credentials ID
+      sqlFile       : 'schema.sql',              // SQL file path
+      dryRun        : false                      // Optional (true/false)
+  ]
+  dbDeployTemplate(dbConfig)
+
+Pipeline Stages included:
+1. Stage: Validate Parameters (Checks dbName, credentials, sqlFile existence)
+2. Stage: Pre-Deployment Checks (Tests port connectivity to DB host)
+3. Stage: Dry-Run & Schema Validation (Runs if dryRun == true)
+4. Stage: Deploy SQL Schema (Runs if dryRun == false)
+5. Stage: Post-Deployment Verification (Confirms deployment completion)
+Post: Success and failure notifications
