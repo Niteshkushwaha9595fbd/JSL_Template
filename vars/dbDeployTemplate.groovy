@@ -7,8 +7,11 @@
  *   @Library('JSL_Template') _
  *
  *   def dbConfig = [
+ *       repoUrl       : 'https://github.com/myorg/database-repo.git', // Git Repo URL
+ *       branch        : 'main',                                       // Git Branch
+ *       gitCredsId   : 'github-creds',                              // Optional: Git Credentials ID
  *       environment   : 'DEV',
- *       dbType        : 'mysql',
+ *       dbType        : 'mysql',                                      // 'mysql' ya 'postgres'
  *       dbHost        : '192.168.1.100',
  *       dbPort        : '3306',
  *       dbName        : 'app_db',
@@ -22,30 +25,60 @@
 
 def call(Map params = [:]) {
     // 1. Script parameters read karna (with fallbacks to env)
-    def targetEnv     = params.environment ?: env.ENVIRONMENT ?: 'DEV'
-    def dbType        = (params.dbType ?: env.DB_TYPE ?: 'mysql').toLowerCase()
-    def dbHost        = params.dbHost ?: env.DB_HOST ?: 'localhost'
-    def dbPort        = params.dbPort ?: env.DB_PORT ?: (dbType.contains('postgres') ? '5432' : '3306')
-    def dbName        = params.dbName ?: env.DB_NAME ?: ''
-    def credentialsId = params.credentialsId ?: env.DB_CREDENTIALS_ID ?: ''
-    def dbUser        = params.dbUser ?: env.DB_USER ?: ''
-    def dbPassword    = params.dbPassword ?: env.DB_PASSWORD ?: ''
-    def sqlFile       = params.sqlFile ?: env.SQL_FILE ?: 'schema.sql'
-    def dryRun        = params.dryRun != null ? params.dryRun : false
+    def repoUrl          = params.repoUrl ?: params.gitUrl ?: env.REPO_URL ?: env.GIT_URL ?: ''
+    def repoBranch       = params.branch ?: params.repoBranch ?: env.BRANCH ?: env.GIT_BRANCH ?: 'main'
+    def gitCredentialsId = params.gitCredentialsId ?: params.gitCredsId ?: env.GIT_CREDENTIALS_ID ?: ''
+    def targetEnv        = params.environment ?: env.ENVIRONMENT ?: 'DEV'
+    def dbType           = (params.dbType ?: env.DB_TYPE ?: 'mysql').toLowerCase()
+    def dbHost           = params.dbHost ?: env.DB_HOST ?: 'localhost'
+    def dbPort           = params.dbPort ?: env.DB_PORT ?: (dbType.contains('postgres') ? '5432' : '3306')
+    def dbName           = params.dbName ?: env.DB_NAME ?: ''
+    def credentialsId    = params.credentialsId ?: env.DB_CREDENTIALS_ID ?: ''
+    def dbUser           = params.dbUser ?: env.DB_USER ?: ''
+    def dbPassword       = params.dbPassword ?: env.DB_PASSWORD ?: ''
+    def sqlFile          = params.sqlFile ?: env.SQL_FILE ?: 'schema.sql'
+    def dryRun           = params.dryRun != null ? params.dryRun : false
 
     pipeline {
         agent any
 
         stages {
             // ==============================================================
-            // STAGE 1: Parameter Validation & Workspace Check
+            // STAGE 1: Checkout Repository
+            // ==============================================================
+            stage('Checkout Repository') {
+                steps {
+                    script {
+                        echo "=========================================================="
+                        echo " [STAGE 1] CHECKOUT REPOSITORY                            "
+                        echo "=========================================================="
+                        if (repoUrl) {
+                            echo "[INFO] Cloning repository: ${repoUrl} (Branch: ${repoBranch})..."
+                            if (gitCredentialsId) {
+                                git url: repoUrl, branch: repoBranch, credentialsId: gitCredentialsId
+                            } else {
+                                git url: repoUrl, branch: repoBranch
+                            }
+                            echo "[SUCCESS] Cloned repository successfully!"
+                        } else {
+                            echo "[INFO] 'repoUrl' not specified; checking out SCM from current job context..."
+                            checkout scm
+                        }
+                    }
+                }
+            }
+
+            // ==============================================================
+            // STAGE 2: Parameter Validation & Workspace Check
             // ==============================================================
             stage('Validate Parameters') {
                 steps {
                     script {
                         echo "=========================================================="
-                        echo " [STAGE 1] VALIDATING PARAMETERS & WORKSPACE              "
+                        echo " [STAGE 2] VALIDATING PARAMETERS & WORKSPACE              "
                         echo "=========================================================="
+                        echo " Repository URL     : ${repoUrl ?: 'Current Job SCM'}"
+                        echo " Branch             : ${repoBranch}"
                         echo " Target Environment : ${targetEnv}"
                         echo " Database Type      : ${dbType}"
                         echo " Target Host        : ${dbHost}:${dbPort}"
@@ -72,13 +105,13 @@ def call(Map params = [:]) {
             }
 
             // ==============================================================
-            // STAGE 2: Pre-Deployment Connectivity Check
+            // STAGE 3: Pre-Deployment Connectivity Check
             // ==============================================================
             stage('Pre-Deployment Checks') {
                 steps {
                     script {
                         echo "=========================================================="
-                        echo " [STAGE 2] PRE-DEPLOYMENT CONNECTIVITY CHECK              "
+                        echo " [STAGE 3] PRE-DEPLOYMENT CONNECTIVITY CHECK              "
                         echo "=========================================================="
                         echo "[INFO] Testing connectivity to ${dbHost} on port ${dbPort}..."
                         try {
@@ -95,7 +128,7 @@ def call(Map params = [:]) {
             }
 
             // ==============================================================
-            // STAGE 3: Dry-Run / Validation (Conditional Stage)
+            // STAGE 4: Dry-Run / Validation (Conditional Stage)
             // ==============================================================
             stage('Dry-Run & Schema Validation') {
                 when {
@@ -104,7 +137,7 @@ def call(Map params = [:]) {
                 steps {
                     script {
                         echo "=========================================================="
-                        echo " [STAGE 3] DRY-RUN VALIDATION (No permanent changes)      "
+                        echo " [STAGE 4] DRY-RUN VALIDATION (No permanent changes)      "
                         echo "=========================================================="
                         echo "[INFO] Running dry-run check on ${sqlFile}..."
                         executeSqlDeploy(dbType, dbHost, dbPort, dbName, credentialsId, dbUser, dbPassword, sqlFile, true)
@@ -114,7 +147,7 @@ def call(Map params = [:]) {
             }
 
             // ==============================================================
-            // STAGE 4: Apply SQL Schema Deployment
+            // STAGE 5: Apply SQL Schema Deployment
             // ==============================================================
             stage('Deploy SQL Schema') {
                 when {
@@ -123,7 +156,7 @@ def call(Map params = [:]) {
                 steps {
                     script {
                         echo "=========================================================="
-                        echo " [STAGE 4] APPLYING SQL SCHEMA MIGRATION                  "
+                        echo " [STAGE 5] APPLYING SQL SCHEMA MIGRATION                  "
                         echo "=========================================================="
                         echo "[INFO] Deploying ${sqlFile} to '${dbName}' (${dbType}) on ${dbHost}..."
                         executeSqlDeploy(dbType, dbHost, dbPort, dbName, credentialsId, dbUser, dbPassword, sqlFile, false)
@@ -132,13 +165,13 @@ def call(Map params = [:]) {
             }
 
             // ==============================================================
-            // STAGE 5: Post-Deployment Verification
+            // STAGE 6: Post-Deployment Verification
             // ==============================================================
             stage('Post-Deployment Verification') {
                 steps {
                     script {
                         echo "=========================================================="
-                        echo " [STAGE 5] POST-DEPLOYMENT VERIFICATION                   "
+                        echo " [STAGE 6] POST-DEPLOYMENT VERIFICATION                   "
                         echo "=========================================================="
                         echo "[INFO] Database '${dbName}' schema deployed successfully for environment '${targetEnv}'."
                     }

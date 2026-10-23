@@ -6,14 +6,19 @@
 
 // Step 1: Script me 'def' karke parameters define karein:
 def dbConfig = [
-    environment   : 'DEV',                     // Target Env: DEV, QA, UAT, PROD
-    dbType        : 'mysql',                   // Database type: 'mysql' ya 'postgres'
-    dbHost        : '192.168.1.100',           // Database Host / IP
-    dbPort        : '3306',                    // Port (Optional: default 3306 for mysql, 5432 for postgres)
-    dbName        : 'my_database',             // Database Name (Required)
-    credentialsId : 'db-credentials-id',       // Jenkins me saved Credentials ID (Username/Password)
-    sqlFile       : 'schema.sql',              // SQL file ka path (Workspace ke andar)
-    dryRun        : false                      // true = Sirf test/rollback karega, false = apply karega
+    // --- Repository Configuration ---
+    repoUrl          : 'https://github.com/my-org/my-db-repo.git', // SQL scripts repository URL
+    branch           : 'main',                                     // Branch name (Default: 'main')
+    gitCredentialsId : 'github-credentials-id',                    // (Optional) Private repo credentials ID
+    // --- Database Configuration ---
+    environment      : 'DEV',                                      // Target Env: DEV, QA, UAT, PROD
+    dbType           : 'mysql',                                    // Database type: 'mysql' ya 'postgres'
+    dbHost           : '192.168.1.100',                            // Database Host / IP
+    dbPort           : '3306',                                     // Port (Optional: default 3306 for mysql, 5432 for postgres)
+    dbName           : 'my_database',                              // Database Name (Required)
+    credentialsId    : 'db-credentials-id',                        // Jenkins me saved DB Credentials ID
+    sqlFile          : 'schema.sql',                               // SQL file ka path (Cloned workspace ke andar)
+    dryRun           : false                                       // true = test only, false = apply
 ]
 
 // Step 2: Template me parameter pass karein (Stages parameterized chalengi):
